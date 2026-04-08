@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="assets/style.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg==" crossorigin="anonymous" referrerpolicy="no-referrer" /></head>
+<body>
+    <div id="container">
+        <div id="stats">
+            <div id="health" class="icons">
+                <i class="fa-solid fa-heart"></i>
+                <svg style="border: solid #8e1212 3px;">                
+                    <rect fill="#c52d2d" />
+                </svg>
+            </div>
+            <div id="hunger" class="icons">
+                <i class="fa-solid fa-utensils"></i>    
+                <svg style="border: solid #90551d 3px;">
+                    <rect fill="#b27337" />
+                </svg>
+            </div>
+            <div id="thirst" class="icons">
+                <i class="fa-solid fa-bottle-water"></i>
+                <svg style="border: solid #1e4a89 3px;">                
+                    <rect fill="#3569b1" />
+                </svg>
+            </div>
+            <div id="armor" class="icons">
+                <i class="fa-solid fa-vest"></i>
+                <svg style="border: solid #9b9917 3px;">                
+                    <rect fill="#cdca3a" />
+                </svg>
+            </div>
+            <div id="oxygen" class="icons">
+                <i class="fa-solid fa-mask-ventilator"></i>
+                <svg style="border: solid #1f8a91 3px;">                
+                    <rect fill="#4ebac2" />
+                </svg>
+            </div>
+        </div>
+        <div id="vehicle">
+            <div id="speed_number">0<div class="grey_text">00</div></div>
+            <div id="speed_gear">GEAR 0</div>
+            <svg class="vehicle_fuel" style="border: solid #277c3c 3px;">                
+                <rect class="vehicle_fuel" fill="#1f8e3b" />
+            </svg>
+            <svg class="speed_bar" style="border: solid #ce6d0d 3px;">                
+                <rect class="speed_bar" fill="#f5881b" />
+            </svg>
+        </div>
+        <div id="compass">
+            <div id="street">STREET NAME</div>
+            <div id="degrees">0° N</div>
+        </div>
+        <div id="extras">
+            <div id="voice">
+                <i class="fa-solid fa-microphone"></i>
+                <svg style="border: solid #bd4c05 3px;">                
+                    <rect fill="#ca6323" />
+                </svg>
+            </div>
+        </div>
+    </div>
+</body>
+<script src="assets/script.js"></script>
+</html>

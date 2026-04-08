@@ -1,0 +1,141 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Bebas+Neue&family=Boldonse&family=Golos+Text:wght@400..900&family=Pathway+Gothic+One&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    transition: width 0.1s linear; 
+    will-change: width;
+}
+
+:root {
+  font-family: "Barlow Semi Condensed", sans-serif;
+}
+
+.grey_text {
+  color: #828282c6;
+}
+
+#container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    /* background-image: url("img/bg.jpg");
+    background-size: cover; */
+}
+
+i {
+    color: white;
+    font-size: 2vh;
+}
+
+.icons {
+    position: relative;
+    width: 4vh;
+    height: 4vh;
+}
+
+.icons i {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(253, 252, 252, 0.693);
+}
+
+svg, rect {
+    width: 4vh;
+    height: 4vh;
+}
+
+#stats {
+    position: absolute;
+    bottom: 1vh;
+    left: 1vh;
+    display: flex;
+    gap: 1vh;
+}
+
+#vehicle {
+    position: absolute;
+    bottom: 1vh;
+    right: 1vh;
+    display: none;
+}
+
+#speed_number {
+    font-size: 7vh;
+    color: #f5881b;
+    font-family: var(--font-family);
+    font-weight: bold;
+    display: flex;
+    text-align: left;
+}
+
+#speed_gear {
+    font-size: 2.5vh;
+    color: #d3d3d3;
+    font-family: var(--font-family);
+    font-weight: bold;
+    position: absolute;
+    right: 17.2vh;
+    bottom: 9vh;
+    text-align: left;
+}
+
+.speed_bar {
+    width: 25vh;
+    height: 2vh;
+}
+
+.vehicle_fuel {
+    width: 13vh;
+    height: 1.3vh;
+    position: absolute;
+    bottom: 3.5vh;
+    left: 12vh;
+}
+
+#compass {
+    position: absolute;
+    top: 1vh;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 3vh;
+    color: #d3d3d3;
+    font-family: var(--font-family);
+    font-weight: bold;
+    text-align: center;
+}
+
+#voice svg, #voice rect {
+    width: 3vh;
+    height: 3vh;
+}
+
+#voice {
+    position: relative;
+    width: 3vh;
+    height: 3vh;
+    top: 1vh;
+    left: 1vh;
+}
+
+#voice i {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(253, 252, 252, 0.693);
+    font-size: 1.5vh;
+}
+
+.blinking_alert {
+    animation: blinking 2s infinite;
+}
+
+@keyframes blinking {
+    0% { opacity: 1; }
+    50% { opacity: 0; }
+    100% { opacity: 1; }
+}
