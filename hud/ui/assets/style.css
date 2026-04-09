@@ -73,27 +73,27 @@ svg, rect {
 }
 
 #speed_gear {
-    font-size: 2.5vh;
+    font-size: 2.25vh;
     color: #d3d3d3;
     font-family: var(--font-family);
     font-weight: bold;
     position: absolute;
-    right: 17.2vh;
-    bottom: 9vh;
+    right: 0;
+    bottom: 4.5vh;
     text-align: left;
 }
 
-.speed_bar {
-    width: 25vh;
-    height: 2vh;
+.rpm_bar {
+    width: 18vh;
+    height: 1.3vh;
 }
 
 .vehicle_fuel {
-    width: 13vh;
+    width: 6.5vh;
     height: 1.3vh;
     position: absolute;
-    bottom: 3.5vh;
-    left: 12vh;
+    bottom: 3vh;
+    left: 11.5vh;
 }
 
 #compass {
@@ -102,7 +102,7 @@ svg, rect {
     left: 50%;
     transform: translateX(-50%);
     font-size: 3vh;
-    color: #d3d3d3;
+    color: #ffffff;
     font-family: var(--font-family);
     font-weight: bold;
     text-align: center;

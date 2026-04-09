@@ -71,11 +71,11 @@ return {
     },
 
     customHudStats = {
-        -- [1] = {
-        --     name = 'car',
-        --     icon = 'fa-solid fa-car',
-        --     border = '#00ff00',
-        --     fill = '#2da42d',
-        -- }
+        [1] = {
+            name = 'car',
+            icon = 'fa-solid fa-car',
+            border = '#00ff00',
+            fill = '#2da42d',
+        }
     },
 }

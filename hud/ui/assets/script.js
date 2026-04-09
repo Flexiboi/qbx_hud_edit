@@ -8,6 +8,7 @@ const default_hud_height = "1vh"; // Default hud height, used to reset the heigh
 const hud = document.querySelector('#container');
 
 const voice = document.querySelector('#voice rect');
+const voice_gradient = document.querySelectorAll('#voiceGradient stop');
 
 const stats = document.querySelector('#stats');
 const health = document.querySelector('#health rect');
@@ -21,8 +22,10 @@ const compass = document.querySelector('#compass');
 const degreesElement = document.querySelector('#compass #degrees');
 const speed = document.querySelector('#speed_number');
 const gear = document.querySelector('#speed_gear');
-const speed_bar = document.querySelector('.speed_bar rect');
+const rpm_bar = document.querySelector('.rpm_bar rect');
+const rpm_bar_gradient = document.querySelectorAll('#rpmGradient stop');
 const vehicle_fuel = document.querySelector('.vehicle_fuel rect');
+const vehicle_fuel_gradient = document.querySelectorAll('#fuelGradient stop');
 const street = document.querySelector('#compass #street');
 
 window.addEventListener('message', function(event) {
@@ -43,22 +46,28 @@ window.addEventListener('message', function(event) {
                 }
                 break;
             case 'car':
-                InVehicle = data.show;
-                Seatbelt = data.seatbelt;
-                Cruise = data.cruise;
-                if (data.fuel) {
-                    vehicle_fuel.style.width = `${data.fuel}%`;
-                    if (data.fuel <= 25) {
-                        if (vehicle_fuel.style.fill === "#1f8e3b") {
-                            vehicle_fuel.style.fill = '#bc1b1b';
-                        }
-                    } else {
-                        if (vehicle_fuel.style.fill !== "#1f8e3b") {
-                            vehicle_fuel.style.fill = "#1f8e3b";
+                if (data.playerDead) {
+                    toggleHud(false);
+                } else {
+                    InVehicle = data.show;
+                    Seatbelt = data.seatbelt;
+                    Cruise = data.cruise;
+                    if (data.fuel) {
+                        vehicle_fuel.style.width = `${data.fuel}%`;
+                        if (data.fuel <= 25) {
+                            const colors = generateDarkToLightGradient(vehicle_fuel_gradient.length, "#982121");
+                            vehicle_fuel_gradient.forEach((stop, index) => {
+                                stop.setAttribute('style', `stop-color: ${colors[index]}; stop-opacity: 1`);
+                            });
+                        } else {
+                            const colors = generateDarkToLightGradient(vehicle_fuel_gradient.length, "#368119");
+                            vehicle_fuel_gradient.forEach((stop, index) => {
+                                stop.setAttribute('style', `stop-color: ${colors[index]}; stop-opacity: 1`);
+                            });
                         }
                     }
+                    toggleCarHud(data.show);
                 }
-                toggleCarHud(data.show);
                 break;
             case 'addCustomStats':
                 addCustomStats(data.assets);
@@ -84,7 +93,7 @@ window.addEventListener('message', function(event) {
 });
 
 function toggleHud(show) {
-    hud.style.display = show ? 'block' : 'none';
+    hud.style.display = show ? 'none' : 'block';
 }
 
 function toggleCarHud(show) {
@@ -98,6 +107,40 @@ function getCardinalDirection(degrees) {
     if (d >= 45 && d < 135) return 'E';
     if (d >= 135 && d < 225) return 'S';
     return 'W';
+}
+
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : null;
+}
+
+function generateDarkToLightGradient(steps, baseHex) {
+    const baseRGB = hexToRgb(baseHex);
+    const gradientArray = [];
+    const darkFactor = 1.0; 
+    const lightFactor = 1.4;
+    const startColor = {
+        r: Math.min(255, Math.floor(baseRGB.r * darkFactor)),
+        g: Math.min(255, Math.floor(baseRGB.g * darkFactor)),
+        b: Math.min(255, Math.floor(baseRGB.b * darkFactor))
+    };
+    const endColor = {
+        r: Math.min(255, Math.floor(baseRGB.r * lightFactor)),
+        g: Math.min(255, Math.floor(baseRGB.g * lightFactor)),
+        b: Math.min(255, Math.floor(baseRGB.b * lightFactor))
+    };
+    for (let i = 0; i < steps; i++) {
+        const factor = i / (steps - 1);
+        const r = Math.round(startColor.r + (endColor.r - startColor.r) * factor);
+        const g = Math.round(startColor.g + (endColor.g - startColor.g) * factor);
+        const b = Math.round(startColor.b + (endColor.b - startColor.b) * factor);
+        gradientArray.push(`rgb(${r}, ${g}, ${b})`);
+    }
+    return gradientArray;
 }
 
 function updateCompass(value) {
@@ -138,6 +181,7 @@ const checkStatAlert = (element, value) => {
 }
 
 function hudTick(data) {
+    toggleHud(data.isPaused)
     if (data.show) {
         updateBar(health, data.health);
         checkStatAlert(health, data.health);
@@ -164,12 +208,25 @@ function hudTick(data) {
                 voice.style.width = `33%`;
                 break;
         }
-        voice.style.fill = data.talking ? color : '#3d3d3d';
+
+        if (data.talking) {
+            const colors = generateDarkToLightGradient(voice_gradient.length, color);
+            voice_gradient.forEach((stop, index) => {
+                stop.setAttribute('style', `stop-color: ${colors[index]}; stop-opacity: 1`);
+            });
+        } else {
+            const colors = generateDarkToLightGradient(voice_gradient.length, "#696969");
+            voice_gradient.forEach((stop, index) => {
+                stop.setAttribute('style', `stop-color: ${colors[index]}; stop-opacity: 1`);
+            });
+        }
 
         if(InVehicle){
             if(data.speed) {
-                if (data.speed < 10) {
-                    speed.innerHTML = `${data.speed}<div class="grey_text">00</div>`;
+                if (data.speed <= 1) {
+                    speed.innerHTML = `<div class="grey_text">000</div>`;
+                } else if (data.speed < 10) {
+                    speed.innerHTML = `${data.speed <= 1 ? '0' : data.speed}<div class="grey_text">00</div>`;
                 } else if (data.speed < 100) {
                     speed.innerHTML = `${data.speed}<div class="grey_text">0</div>`;
                 } else {
@@ -178,7 +235,7 @@ function hudTick(data) {
             }
 
             if(data.gear) {
-                gear.innerHTML = 'GEAR ' + (data.gear === 0 ? 'R' : data.gear === 1 ? 'N' : data.gear);
+                gear.innerHTML = 'GEAR ' + (data.speed <= 1 ? 'N' : data.gear);
             }
 
             if(data.engine) {
@@ -201,13 +258,17 @@ function hudTick(data) {
 
             if (data.rpm) {
                 if (data.rpm*100 >= 90) {
-                    speed_bar.style.fill = '#bc1b1b';
+                    const colors = generateDarkToLightGradient(rpm_bar_gradient.length, "#bc1b1b");
+                    rpm_bar_gradient.forEach((stop, index) => {
+                        stop.setAttribute('style', `stop-color: ${colors[index]}; stop-opacity: 1`);
+                    });
                 } else {
-                    if (speed_bar.style.fill !== color) {
-                        speed_bar.style.fill = color;
-                    }
+                    const colors = generateDarkToLightGradient(rpm_bar_gradient.length, color);
+                    rpm_bar_gradient.forEach((stop, index) => {
+                        stop.setAttribute('style', `stop-color: ${colors[index]}; stop-opacity: 1`);
+                    });
                 }
-                updateBar(speed_bar, data.rpm*100);
+                updateBar(rpm_bar, data.rpm*100);
             }
         }
     }
@@ -218,9 +279,21 @@ function addCustomStats(assets) {
         stats.innerHTML += `<div id="custom_stat_${item.name}" class="custom_stat icons">
             <i class="${item.icon}"></i>
             <svg style="border: solid ${item.border} 3px;">
-                <rect fill="${item.fill}" />
+                <defs>
+                    <linearGradient id="gradient_${item.name}" x1="0%" y1="100%" x2="0%" y2="0%">
+                        <stop offset="0%" style="stop-color:${item.fill}; stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:${item.fill}; stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#gradient_${item.name})" />
             </svg>
         </div>`;
+        const newstat_gradient = document.querySelectorAll(`#gradient_${item.name} stop`);
+        const colors = generateDarkToLightGradient(newstat_gradient.length, item.fill);
+        newstat_gradient.forEach((stop, index) => {
+            stop.setAttribute('style', `stop-color: ${colors[index]}; stop-opacity: 1`);
+        });
+        updateCustomStat(item.name, 0);
     });
 }
 

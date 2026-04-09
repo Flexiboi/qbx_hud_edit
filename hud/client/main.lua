@@ -27,11 +27,11 @@ RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function()
     TriggerEvent('hud:client:LoadMap')
 end)
 
-AddEventHandler("onResourceStart", function(resourceName)
-	if (GetCurrentResourceName() == resourceName) then
-		TriggerEvent('hud:client:LoadMap')
-	end
-end)
+-- AddEventHandler("onResourceStart", function(resourceName)
+-- 	if (GetCurrentResourceName() == resourceName) then
+-- 		TriggerEvent('hud:client:LoadMap')
+-- 	end
+-- end)
 
 RegisterNUICallback('showOutMap', function(_, cb)
     Wait(50)
@@ -148,6 +148,7 @@ local function updatePlayerHud(data)
             gear = data[16],
             maxspeed = data[17],
             rpm = data[18],
+            isPaused = data[19],
         })
     end
 end
@@ -251,6 +252,7 @@ CreateThread(function()
                 cache.vehicle and GetVehicleCurrentGear(cache.vehicle),
                 cache.vehicle and GetVehicleEstimatedMaxSpeed(cache.vehicle),
                 cache.vehicle and GetVehicleCurrentRpm(cache.vehicle),
+                IsPauseMenuActive(),
             })
             end
             -- Vehicle hud
@@ -282,6 +284,7 @@ CreateThread(function()
                     cache.vehicle and GetVehicleCurrentGear(cache.vehicle),
                     cache.vehicle and GetVehicleEstimatedMaxSpeed(cache.vehicle),
                     cache.vehicle and GetVehicleCurrentRpm(cache.vehicle),
+                    IsPauseMenuActive(),
                 })
                 updateVehicleHud({
                     show,
