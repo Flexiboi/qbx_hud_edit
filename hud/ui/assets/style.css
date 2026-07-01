@@ -4,24 +4,31 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    transition: width 0.1s linear; 
+    transition: width 0.1s linear;
     will-change: width;
 }
 
 :root {
-  font-family: "Barlow Semi Condensed", sans-serif;
+    --font-family: "Barlow Semi Condensed", sans-serif;
+    --hud-primary: #f5881b;
+    --hud-button-hover: #e07a16;
+    --hud-editing-bg: rgba(245, 136, 27, 0.2);
+    --hud-minimap-bg: rgba(245, 136, 27, 0.15);
+    --hud-minimap-border: #f5881b;
+    --hud-fuel: #f5881b;
+    --hud-engine-good: #27ae60;
+    --hud-engine-bad: #e74c3c;
 }
 
 .grey_text {
-  color: #828282c6;
+    color: #828282c6;
 }
 
 #container {
     position: relative;
     width: 100vw;
     height: 100vh;
-    /* background-image: url("img/bg.jpg");
-    background-size: cover; */
+    overflow: hidden;
 }
 
 i {
@@ -29,10 +36,15 @@ i {
     font-size: 2vh;
 }
 
+/* --- STATS ICONS (Health, Hunger, etc.) --- */
 .icons {
     position: relative;
     width: 4vh;
     height: 4vh;
+}
+
+.icons svg {
+    border: solid var(--stat-border-color, #ffffff) 3px;
 }
 
 .icons i {
@@ -41,11 +53,16 @@ i {
     left: 50%;
     transform: translate(-50%, -50%);
     color: rgba(253, 252, 252, 0.693);
+    z-index: 10; /* Ensures icons render on top of the SVG background */
 }
 
-svg, rect {
-    width: 4vh;
-    height: 4vh;
+svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
 }
 
 #stats {
@@ -56,69 +73,135 @@ svg, rect {
     gap: 1vh;
 }
 
+/* --- VEHICLE HUD --- */
 #vehicle {
     position: absolute;
-    bottom: 1vh;
-    right: 1vh;
-    display: none;
+    bottom: 2vh;
+    right: 2vh;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-family: var(--font-family);
+    gap: 0.5vh;
+}
+
+#speed_card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    /* This sets the width reference for the bars below */
+    width: 15vh; 
+}
+
+#vehicle_stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1vh;
+    width: 100%;
 }
 
 #speed_number {
     font-size: 7vh;
-    color: #f5881b;
-    font-family: var(--font-family);
+    color: var(--hud-primary);
     font-weight: bold;
+    line-height: 0.8;
+}
+
+#speed_meta {
     display: flex;
-    text-align: left;
+    align-items: center;
+    gap: 0.7vh;
+}
+
+#seatbelt_status {
+    order: -1;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+#seatbelt_status.active {
+    visibility: visible;
+    opacity: 1;
 }
 
 #speed_gear {
     font-size: 2.25vh;
-    color: #d3d3d3;
-    font-family: var(--font-family);
+    color: #ffffff;
     font-weight: bold;
-    position: absolute;
-    right: 0;
-    bottom: 4.5vh;
-    text-align: left;
+    margin-bottom: 0;
 }
 
-.rpm_bar {
-    width: 18vh;
-    height: 1.3vh;
+.hud_right_group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.8vh;
 }
 
-.vehicle_fuel {
-    width: 6.5vh;
-    height: 1.3vh;
-    position: absolute;
-    bottom: 3vh;
-    left: 11.5vh;
+.status_badge {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 1.5vh;
+    background: rgba(234, 209, 209, 0.7);
+    padding: 0.2vh 0.6vh;
+    border-radius: 0.2vh;
 }
 
+.vehicle_stat {
+    display: flex;
+    align-items: center;
+    gap: 0.8vh;
+    width: 12vh; /* Matches width of speed_card */
+    justify-content: flex-end;
+}
+
+.stat_meter {
+    flex-grow: 1; /* Ensures it fills the container width */
+    height: 1.1vh;
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.stat_meter_fill { height: 100%; transition: background-color 0.3s; }
+#fuel_bar { background-color: var(--hud-fuel); width: 70%; height: 100%; }
+.engine-good { background-color: var(--hud-engine-good); }
+.engine-bad { background-color: var(--hud-engine-bad); }
+
+/* --- COMPASS --- */
 #compass {
     position: absolute;
-    top: 1vh;
+    top: 2vh;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 3vh;
     color: #ffffff;
     font-family: var(--font-family);
     font-weight: bold;
     text-align: center;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
 }
 
-#voice svg, #voice rect {
-    width: 3vh;
-    height: 3vh;
+#street {
+    font-size: 3vh;
+}
+
+#degrees {
+    font-size: 2vh;
+    color: #d3d3d3;
+}
+
+
+/* --- EXTRAS & VOICE --- */
+#extras {
+    position: absolute;
+    top: 1vh;
+    left: 1vh;
 }
 
 #voice {
     position: relative;
     width: 3vh;
     height: 3vh;
-    top: 1vh;
-    left: 1vh;
 }
 
 #voice i {
@@ -128,8 +211,11 @@ svg, rect {
     transform: translate(-50%, -50%);
     color: rgba(253, 252, 252, 0.693);
     font-size: 1.5vh;
+    z-index: 10;
 }
 
+
+/* --- ANIMATIONS --- */
 .blinking_alert {
     animation: blinking 2s infinite;
 }
@@ -138,4 +224,86 @@ svg, rect {
     0% { opacity: 1; }
     50% { opacity: 0; }
     100% { opacity: 1; }
+}
+
+/* Add to the bottom of style.css */
+#settings_menu {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 3vh;
+    border-radius: 1vh;
+    text-align: center;
+    z-index: 999;
+    font-family: var(--font-family);
+    border: 2px solid var(--hud-primary);
+}
+
+#settings_menu h2 {
+    margin-bottom: 1vh;
+    color: var(--hud-primary);
+}
+
+#settings_menu p {
+    margin-bottom: 2vh;
+    font-size: 2vh;
+}
+
+#settings_menu button {
+    padding: 1vh 2vh;
+    margin: 0.5vh;
+    background: var(--hud-primary);
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 2vh;
+    font-weight: bold;
+    border-radius: 0.5vh;
+}
+
+#settings_menu button:hover {
+    background: var(--hud-button-hover);
+}
+
+/* Visual cue for dragging */
+.editing {
+    border: 2px dashed var(--hud-primary) !important;
+    cursor: move !important;
+    background-color: var(--hud-editing-bg);
+    pointer-events: auto; /* Ensure elements can be clicked */
+}
+
+/* Add this to the bottom of style.css */
+#minimap_anchor {
+    position: absolute;
+    bottom: 1.5vh;
+    left: 1vh;
+    width: 14.5vw;
+    height: 24.5vh;
+    border: 2px dashed var(--hud-minimap-border);
+    background: var(--hud-minimap-bg);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-family: var(--font-family);
+    font-weight: bold;
+    gap: 1vh;
+    z-index: 5;
+    pointer-events: none;
+}
+
+#minimap_anchor i {
+    font-size: 3vh;
+    color: var(--hud-primary);
+}
+
+#minimap_anchor.editing {
+    display: flex !important;
+    pointer-events: auto;
+    cursor: move;
 }

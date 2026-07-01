@@ -1,0 +1,7 @@
+{
+    "notify": {
+        "low_fuel": "Lage brandstof!",
+        "stress_gain": "Je voelt je gestrest",
+        "stress_removed": "Je voelt je ontspannen"
+    }
+}

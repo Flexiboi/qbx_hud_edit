@@ -1,127 +1,293 @@
 local config = require 'config.client'
 local speedMultiplier = config.useMPH and 2.23694 or 3.6
-local cruiseOn = false
 local showSeatbelt = false
-local playerState = LocalPlayer.state
-local stress = playerState.stress or 0
-local hunger = playerState.hunger or 100
-local thirst = playerState.thirst or 100
-local hp = 100
-local armed = false
-local oxygen = 100
-local playerDead = false
-local w = 0
-local hasWeapon = false
 local OutMap = config.outMap
+local wasInVehicle = false
+local lastPlayerLoggedIn = false
+local hudConfig = {
+    hideThreshold = (config.hud and config.hud.hideThreshold) or 90,
+    blinkThreshold = (config.hud and config.hud.blinkThreshold) or 15,
+    colors = config.hudColors or {}
+}
 
-RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function()
-    Wait(2000)
-    stress = QBX.PlayerData.metadata.stress
-    hunger = QBX.PlayerData.metadata.hunger
-    thirst = QBX.PlayerData.metadata.thirst
-    hp = QBX.PlayerData.metadata.health
-    SendNUIMessage({
-        action = 'addCustomStats',
-        assets = config.customHudStats
-    })
-    TriggerEvent('hud:client:LoadMap')
-end)
+-- === MOVE THESE TO THE TOP HERE ===
+local customMinimapOffsetX = GetResourceKvpFloat('hud_minimap_offset_x') or 0.0
+local customMinimapOffsetY = GetResourceKvpFloat('hud_minimap_offset_y') or 0.0
 
--- AddEventHandler("onResourceStart", function(resourceName)
--- 	if (GetCurrentResourceName() == resourceName) then
--- 		TriggerEvent('hud:client:LoadMap')
--- 	end
--- end)
+local minimapOffset = 0
+local minimapShifted = false
+local minimapShiftY = 0.04
+local minimapBasePosition = {
+    minimap = { x = -0.0100, y = -0.030, w = 0.180, h = 0.258 },
+    minimap_mask = { x = 0.200, y = 0.0, w = 0.065, h = 0.20 },
+    minimap_blur = { x = -0.01, y = 0.015, w = 0.262, h = 0.300 },
+}
 
-RegisterNUICallback('showOutMap', function(_, cb)
-    Wait(50)
-    OutMap = not OutMap
-    SetResourceKvp('hud_outMap', OutMap)
-    DisplayRadar(OutMap)
+-- The standard GTA V frontend alignment values for a default safezone
+local defaultMinimap = {
+    x = -0.0045,
+    y = 0.002,
+    w = 0.150,
+    h = 0.188888
+}
+
+local function round(value)
+    return math.floor(value + 0.5)
+end
+
+local function clamp(value, minValue, maxValue)
+    return math.min(math.max(value, minValue), maxValue)
+end
+
+local uiReady = false
+local playerLoaded = false
+local hudInitialized = false
+local customStatsRegistered = false
+local updateHudNow
+
+-- Add this state tracker near the top of your file with your other local variables
+local lastRadarState = nil
+
+local function toggleRadar(state)
+    if lastRadarState ~= state then
+        lastRadarState = state
+        DisplayRadar(state)
+    end
+end
+
+local function setMinimapPosition(shifted, forceUpdate)
+    if not forceUpdate and shifted == minimapShifted then return end
+
+    minimapShifted = shifted
+    local yOffset = shifted and minimapShiftY or 0.0
+
+    SetMinimapComponentPosition(
+        "minimap",
+        "L",
+        "B",
+        minimapBasePosition.minimap.x + minimapOffset + customMinimapOffsetX,
+        minimapBasePosition.minimap.y + customMinimapOffsetY + yOffset,
+        minimapBasePosition.minimap.w,
+        minimapBasePosition.minimap.h
+    )
+
+    SetMinimapComponentPosition(
+        "minimap_mask",
+        "L",
+        "B",
+        minimapBasePosition.minimap_mask.x + minimapOffset + customMinimapOffsetX,
+        minimapBasePosition.minimap_mask.y + customMinimapOffsetY + yOffset,
+        minimapBasePosition.minimap_mask.w,
+        minimapBasePosition.minimap_mask.h
+    )
+
+    SetMinimapComponentPosition(
+        "minimap_blur",
+        "L",
+        "B",
+        minimapBasePosition.minimap_blur.x + minimapOffset + customMinimapOffsetX,
+        minimapBasePosition.minimap_blur.y + customMinimapOffsetY + yOffset,
+        minimapBasePosition.minimap_blur.w,
+        minimapBasePosition.minimap_blur.h
+    )
+end
+
+RegisterNUICallback('saveMinimapPosition', function(data, cb)
+    local moveRatioX = data.moveRatioX or 0.0
+    local moveRatioY = data.moveRatioY or 0.0
+
+    -- Multiply the movement ratio by the native component sizes
+    local newX = defaultMinimap.x + (moveRatioX * defaultMinimap.w)
+    local newY = defaultMinimap.y + (moveRatioY * defaultMinimap.h)
+
+    -- Apply the updated positions across all map components simultaneously
+    SetMinimapComponentPosition("minimap", "L", "B", newX, newY, defaultMinimap.w, defaultMinimap.h)
+    SetMinimapComponentPosition("minimap_mask", "L", "B", newX, newY, defaultMinimap.w, defaultMinimap.h)
+    SetMinimapComponentPosition("minimap_blur", "L", "B", newX, newY, defaultMinimap.w, defaultMinimap.h)
+
     cb('ok')
 end)
 
-RegisterNetEvent('hud:client:LoadMap', function()
-    Wait(50)
-    -- Credit to Dalrae for the solve.
-    local defaultAspectRatio = 1920 / 1080 -- Don't change this.
-    local resolutionX, resolutionY = GetActiveScreenResolution()
-    local aspectRatio = resolutionX / resolutionY
-    local minimapOffset = 0
-    if aspectRatio > defaultAspectRatio then
-        minimapOffset = ((defaultAspectRatio-aspectRatio) / 3.6) + .0035
+RegisterNUICallback('updateLiveMinimap', function(data, cb)
+    local x = tonumber(data.x) or 0.0
+    local y = tonumber(data.y) or 0.0
+
+    customMinimapOffsetX = clamp(x * defaultMinimap.w, -defaultMinimap.w, defaultMinimap.w)
+    customMinimapOffsetY = clamp(y * defaultMinimap.h, -defaultMinimap.h, defaultMinimap.h)
+
+    setMinimapPosition(minimapShifted, true)
+
+    cb('ok')
+end)
+
+local function loadHudPositions()
+    if not uiReady then
+        return
     end
-    lib.requestStreamedTextureDict('squaremap')
-    SetMinimapClipType(0)
-    AddReplaceTexture('platform:/textures/graphics', 'radarmasksm', 'squaremap', 'radarmasksm')
-    AddReplaceTexture('platform:/textures/graphics', 'radarmask1g', 'squaremap', 'radarmasksm')
-    -- 0.0 = nav symbol and icons left
-    -- 0.1638 = nav symbol and icons stretched
-    -- 0.216 = nav symbol and icons raised up
-    SetMinimapComponentPosition('minimap', 'L', 'B', -0.0100 + minimapOffset, -0.030, 0.180, 0.258)
 
-    -- icons within map
-    SetMinimapComponentPosition('minimap_mask', 'L', 'B', 0.200 + minimapOffset, 0.0, 0.065, 0.20)
+    local statsX = GetResourceKvpString('hud_stats_x')
+    local statsY = GetResourceKvpString('hud_stats_y')
+    local vehicleX = GetResourceKvpString('hud_vehicle_x')
+    local vehicleY = GetResourceKvpString('hud_vehicle_y')
+    local minimapX = GetResourceKvpString('hud_minimap_x')
+    local minimapY = GetResourceKvpString('hud_minimap_y')
+    
+    customMinimapOffsetX = GetResourceKvpFloat('hud_minimap_offset_x') or 0.0
+    customMinimapOffsetY = GetResourceKvpFloat('hud_minimap_offset_y') or 0.0
 
-    -- -0.01 = map pulled left
-    -- 0.025 = map raised up
-    -- 0.262 = map stretched
-    -- 0.315 = map shorten
-    SetMinimapComponentPosition('minimap_blur', 'L', 'B', -0.01 + minimapOffset, 0.015, 0.262, 0.300)
-    SetBlipAlpha(GetNorthRadarBlip(), 0)
-    SetBigmapActive(true, false)
-    SetMinimapClipType(0)
-    Wait(50)
-    SetBigmapActive(false, false)
+    SendNUIMessage({
+        action = 'loadPositions',
+        statsX = statsX,
+        statsY = statsY,
+        vehicleX = vehicleX,
+        vehicleY = vehicleY,
+        minimapX = minimapX,
+        minimapY = minimapY
+    })
+    
+    TriggerEvent('hud:client:LoadMap')
+end
+
+RegisterCommand('hud', function()
+    SetNuiFocus(true, true)
+    SendNUIMessage({ action = 'openSettings' })
+end, false)
+
+RegisterNUICallback('closeSettings', function(_, cb)
+    SetNuiFocus(false, false)
+    cb('ok')
 end)
 
----@deprecated Use statebags instead
-RegisterNetEvent('hud:client:UpdateNeeds', function(newHunger, newThirst) -- Triggered in qb-core
-    hunger = newHunger
-    thirst = newThirst
+RegisterNUICallback('saveHudPositions', function(data, cb)
+    if data.statsX then SetResourceKvp('hud_stats_x', data.statsX) end
+    if data.statsY then SetResourceKvp('hud_stats_y', data.statsY) end
+    if data.vehicleX then SetResourceKvp('hud_vehicle_x', data.vehicleX) end
+    if data.vehicleY then SetResourceKvp('hud_vehicle_y', data.vehicleY) end
+    if data.minimapX then SetResourceKvp('hud_minimap_x', data.minimapX) end
+    if data.minimapY then SetResourceKvp('hud_minimap_y', data.minimapY) end
+    
+    if data.minimapOffsetX ~= nil then 
+        customMinimapOffsetX = clamp((tonumber(data.minimapOffsetX) or 0.0) * defaultMinimap.w, -defaultMinimap.w, defaultMinimap.w)
+        SetResourceKvpFloat('hud_minimap_offset_x', customMinimapOffsetX)
+    end
+    if data.minimapOffsetY ~= nil then 
+        customMinimapOffsetY = clamp((tonumber(data.minimapOffsetY) or 0.0) * defaultMinimap.h, -defaultMinimap.h, defaultMinimap.h)
+        SetResourceKvpFloat('hud_minimap_offset_y', customMinimapOffsetY)
+    end
+
+    TriggerEvent('hud:client:LoadMap')
+    SetNuiFocus(false, false)
+    cb('ok')
 end)
 
-AddStateBagChangeHandler('hunger', ('player:%s'):format(cache.serverId), function(_, _, value)
-    hunger = value
+RegisterNUICallback('resetHudPositions', function(_, cb)
+    DeleteResourceKvp('hud_stats_x')
+    DeleteResourceKvp('hud_stats_y')
+    DeleteResourceKvp('hud_vehicle_x')
+    DeleteResourceKvp('hud_vehicle_y')
+    DeleteResourceKvp('hud_minimap_x')
+    DeleteResourceKvp('hud_minimap_y')
+    DeleteResourceKvp('hud_minimap_offset_x')
+    DeleteResourceKvp('hud_minimap_offset_y')
+
+    customMinimapOffsetX = 0.0
+    customMinimapOffsetY = 0.0
+
+    TriggerEvent('hud:client:LoadMap')
+
+    -- Close the NUI
+    SetNuiFocus(false, false)
+
+    cb('ok')
 end)
 
-AddStateBagChangeHandler('thirst', ('player:%s'):format(cache.serverId), function(_, _, value)
-    thirst = value
-end)
-
----@deprecated Use statebags instead
-RegisterNetEvent('hud:client:UpdateStress', function(newStress)
-    stress = newStress
-end)
-
-AddStateBagChangeHandler('stress', ('player:%s'):format(cache.serverId), function(_, _, value)
-    stress = value
-end)
-
-RegisterNetEvent('hud:client:ToggleShowSeatbelt', function()
-    showSeatbelt = not showSeatbelt
-end)
-
-RegisterNetEvent('seatbelt:client:ToggleCruise', function() -- Triggered in smallresources
-    cruiseOn = not cruiseOn
-end)
-
-local function isWhitelistedWeaponArmed(weapon)
-    if weapon then
-        for _, v in pairs(config.weaponsArmedMode) do
-            if weapon == v then
-                return true
-            end
-        end
+local function isWhitelistedWeapon(weapon, whitelist)
+    if not weapon then return false end
+    for _, v in pairs(whitelist) do
+        if weapon == v then return true end
     end
     return false
 end
 
-local prevPlayerStats = {nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil}
-local function updatePlayerHud(data)
+local function isVehicle(vehicle)
+    return vehicle and not IsThisModelABicycle(GetEntityModel(vehicle))
+end
+
+local function isPlayerDead()
+    return IsEntityDead(cache.ped) or (QBX.PlayerData and QBX.PlayerData.metadata and (QBX.PlayerData.metadata.inlaststand or QBX.PlayerData.metadata.isdead))
+end
+
+local function getVoiceLevel()
+    local voice = 0
+    if LocalPlayer.state and LocalPlayer.state.proximity then
+        voice = LocalPlayer.state.proximity.distance
+        for k, v in pairs(config.voiceVolumes) do
+            if voice <= v then
+                voice = k
+                break
+            end
+        end
+    end
+    return voice
+end
+
+local function getOxygen()
+    if IsEntityInWater(cache.ped) then
+        return GetPlayerUnderwaterTimeRemaining(cache.playerId) * 10
+    end
+    return 100 - GetPlayerSprintStaminaRemaining(cache.playerId)
+end
+
+local function buildPlayerHudData()
+    local show = not IsPauseMenuActive()
+    local isPaused = not show
+    local oxygen = getOxygen()
+    local metadata = QBX.PlayerData and QBX.PlayerData.metadata or {}
+
+    if metadata.hunger ~= nil then
+        hunger = metadata.hunger
+    end
+    if metadata.thirst ~= nil then
+        thirst = metadata.thirst
+    end
+    if metadata.stress ~= nil then
+        stress = metadata.stress
+    end
+
+    return {
+        show,
+        GetEntityHealth(cache.ped) - 100,
+        isPlayerDead(),
+        GetPedArmour(cache.ped),
+        thirst,
+        hunger,
+        stress,
+        getVoiceLevel(),
+        NetworkIsPlayerTalking(cache.playerId),
+        oxygen,
+        isPaused,
+    }
+end
+
+local updatePlayerHud
+
+local lastFuelUpdate = 0
+local lastFuelCheck = 0
+
+local function getFuelLevel(vehicle)
+    local updateTick = GetGameTimer()
+    if (updateTick - lastFuelUpdate) > 2000 then
+        lastFuelUpdate = updateTick
+        lastFuelCheck = math.floor(GetVehicleFuelLevel(vehicle))
+    end
+    return lastFuelCheck
+end
+
+local prevPlayerStats = {}
+updatePlayerHud = function(data)
     local shouldUpdate = false
-    for k, v in pairs(data) do
-        if prevPlayerStats[k] ~= v then
+    for i = 1, 11 do
+        if prevPlayerStats[i] ~= data[i] then
             shouldUpdate = true
             break
         end
@@ -140,25 +306,20 @@ local function updatePlayerHud(data)
             voice = data[8],
             talking = data[9],
             oxygen = data[10],
-            cruise = data[11],
-            seatbelt = data[12],
-            hp = data[13],
-            speed = data[14],
-            engine = data[15],
-            gear = data[16],
-            maxspeed = data[17],
-            rpm = data[18],
-            isPaused = data[19],
+            isPaused = data[11],
         })
     end
 end
 
-local prevVehicleStats = {nil, nil, nil, nil, nil, nil, nil,}
+local prevVehicleStats = {}
 local function updateVehicleHud(data)
     local shouldUpdate = false
-    local invOpen = LocalPlayer.state.invOpen
-    for k, v in pairs(data) do
-        if prevVehicleStats[k] ~= v then shouldUpdate = true break end
+    local invOpen = LocalPlayer.state and LocalPlayer.state.invOpen or false
+    for i = 1, 9 do
+        if prevVehicleStats[i] ~= data[i] then
+            shouldUpdate = true
+            break
+        end
     end
     prevVehicleStats = data
     if shouldUpdate and not invOpen then
@@ -172,161 +333,271 @@ local function updateVehicleHud(data)
             showSeatbelt = data[6],
             engine = data[7],
             gear = data[8],
-            maxspeed = data[9],
-            rpm = data[10],
+            rpm = data[9],
         })
     end
 end
 
-local lastFuelUpdate = 0
-local lastFuelCheck = 0
-
-local function getFuelLevel(vehicle)
-    local updateTick = GetGameTimer()
-    if (updateTick - lastFuelUpdate) > 2000 then
-        lastFuelUpdate = updateTick
-        lastFuelCheck = math.floor(GetVehicleFuelLevel(vehicle))
-    end
-    return lastFuelCheck
+local function sendHudConfig()
+    SendNUIMessage({
+        action = 'hudConfig',
+        hideThreshold = hudConfig.hideThreshold,
+        blinkThreshold = hudConfig.blinkThreshold,
+        colors = hudConfig.colors,
+    })
 end
 
--- HUD Update loop
+local function reloadConfig()
+    package.loaded['config.client'] = nil
+    config = require 'config.client'
+    speedMultiplier = config.useMPH and 2.23694 or 3.6
+    OutMap = config.outMap
+    hudConfig = {
+        hideThreshold = (config.hud and config.hud.hideThreshold) or 90,
+        blinkThreshold = (config.hud and config.hud.blinkThreshold) or 15,
+        colors = config.hudColors or {}
+    }
+end
 
+local function reloadHudConfig()
+    reloadConfig()
+    sendHudConfig()
+    if uiReady and playerLoaded then
+        sendInitialHudUpdates()
+    end
+end
+
+RegisterCommand('hudreload', function()
+    reloadHudConfig()
+    print('[HUD] config reloaded')
+end, false)
+
+RegisterNetEvent('hud:client:ReloadConfig', function()
+    reloadHudConfig()
+    print('[HUD] config reloaded via event')
+end)
+
+local function sendInitialHudUpdates()
+    if not uiReady or not playerLoaded then
+        return
+    end
+
+    if not customStatsRegistered then
+        SendNUIMessage({
+            action = 'addCustomStats',
+            assets = config.customHudStats
+        })
+        customStatsRegistered = true
+    end
+    sendHudConfig()
+
+    if not (LocalPlayer.state and LocalPlayer.state.isLoggedIn) then
+        SendNUIMessage({ action = 'hudtick', show = false })
+        SendNUIMessage({ action = 'car', show = false })
+        return
+    end
+
+    updatePlayerHud(buildPlayerHudData())
+    if isVehicle(cache.vehicle) then
+        updateVehicleHud({
+            true,
+            IsPauseMenuActive(),
+            LocalPlayer.state and LocalPlayer.state.seatbelt or false,
+            math.ceil(GetEntitySpeed(cache.vehicle) * speedMultiplier),
+            getFuelLevel(cache.vehicle),
+            showSeatbelt,
+            (GetVehicleEngineHealth(cache.vehicle) / 10),
+            GetVehicleCurrentGear(cache.vehicle),
+            GetVehicleCurrentRpm(cache.vehicle),
+        })
+    end
+end
+
+local function tryInitHud()
+    if not uiReady or not playerLoaded or hudInitialized then
+        return
+    end
+    hudInitialized = true
+
+    if not customStatsRegistered then
+        SendNUIMessage({
+            action = 'addCustomStats',
+            assets = config.customHudStats
+        })
+        customStatsRegistered = true
+    end
+
+    sendHudConfig()
+    loadHudPositions()
+    sendInitialHudUpdates()
+end
+
+local function hudReady()
+    uiReady = true
+    sendHudConfig()
+    tryInitHud()
+end
+
+RegisterNUICallback('hudReady', function(_, cb)
+    hudReady()
+    cb('ok')
+end)
+
+local function refreshHudAfterDelay(delay)
+    CreateThread(function()
+        Wait(delay)
+        if LocalPlayer.state and LocalPlayer.state.isLoggedIn then
+            sendInitialHudUpdates()
+        end
+    end)
+end
+
+local function onPlayerLoaded()
+    Wait(100)
+    playerLoaded = true
+    local metadata = QBX.PlayerData and QBX.PlayerData.metadata or {}
+    stress = metadata.stress or 0
+    hunger = metadata.hunger or 100
+    thirst = metadata.thirst or 100
+    refreshHudAfterDelay(1000)
+    TriggerEvent('hud:client:LoadMap')
+    sendHudConfig()
+end
+
+RegisterNetEvent('QBCore:Client:OnPlayerLoaded', onPlayerLoaded)
+RegisterNetEvent('QBX:Client:OnPlayerLoaded', onPlayerLoaded)
+
+AddEventHandler('onResourceStart', function(resourceName)
+    if resourceName == GetCurrentResourceName() then
+        onPlayerLoaded()
+    end
+end)
+
+RegisterNUICallback('showOutMap', function(_, cb)
+    OutMap = not OutMap
+    SetResourceKvp('hud_outMap', OutMap)
+    toggleRadar(OutMap)
+    cb('ok')
+end)
+
+RegisterNUICallback('setMinimapState', function(data, cb)
+    local shifted = type(data.shifted) == 'boolean' and data.shifted or false
+    setMinimapPosition(not shifted, false)
+    cb({ status = 'ok', shifted = not shifted })
+end)
+
+RegisterNetEvent('hud:client:LoadMap', function()
+    Wait(50)
+    local defaultAspectRatio = 1920 / 1080
+    local resolutionX, resolutionY = GetActiveScreenResolution()
+    local aspectRatio = resolutionX / resolutionY
+    minimapOffset = 0
+    if aspectRatio > defaultAspectRatio then
+        minimapOffset = ((defaultAspectRatio - aspectRatio) / 3.6) + .0035
+    end
+    lib.requestStreamedTextureDict('squaremap')
+    SetMinimapClipType(0)
+    AddReplaceTexture('platform:/textures/graphics', 'radarmasksm', 'squaremap', 'radarmasksm')
+    AddReplaceTexture('platform:/textures/graphics', 'radarmask1g', 'squaremap', 'radarmasksm')
+    
+    setMinimapPosition(false, true)    
+
+    SetBlipAlpha(GetNorthRadarBlip(), 0)
+    SetBigmapActive(true, false)
+    SetMinimapClipType(0)
+    Wait(50)
+    SetBigmapActive(false, false)
+end)
+
+local stress, hunger, thirst = 0, 100, 100
+AddStateBagChangeHandler('hunger', ('player:%s'):format(cache.serverId), function(_, _, value)
+    hunger = value
+    sendInitialHudUpdates()
+end)
+AddStateBagChangeHandler('thirst', ('player:%s'):format(cache.serverId), function(_, _, value)
+    thirst = value
+    sendInitialHudUpdates()
+end)
+AddStateBagChangeHandler('stress', ('player:%s'):format(cache.serverId), function(_, _, value)
+    stress = value
+    SendNUIMessage({ action = 'updateStress', stress = stress })
+    sendInitialHudUpdates()
+end)
+RegisterNetEvent('hud:client:UpdateStress', function(value)
+    stress = value
+    SendNUIMessage({ action = 'updateStress', stress = stress })
+    sendInitialHudUpdates()
+end)
+
+RegisterNetEvent('hud:client:ToggleShowSeatbelt', function()
+    showSeatbelt = not showSeatbelt
+    sendInitialHudUpdates()
+end)
+
+-- === UPDATED MAIN HUD TICK THREAD ===
 CreateThread(function()
-    local wasInVehicle = false
     while true do
-        Wait(100)
-        if LocalPlayer.state.isLoggedIn then
-            local show = true
-            local weapon = GetSelectedPedWeapon(cache.ped)
-            -- Player hud
-            if not isWhitelistedWeaponArmed(weapon) then
-                if weapon ~= `WEAPON_UNARMED` then
-                    armed = true
-                else
-                    armed = false
-                end
-            end
-            playerDead = IsEntityDead(cache.ped) or QBX.PlayerData.metadata.inlaststand or QBX.PlayerData.metadata.isdead
-            parachute = GetPedParachuteState(cache.ped)
-            -- Stamina
-            if not IsEntityInWater(cache.ped) then
-                oxygen = 100 - GetPlayerSprintStaminaRemaining(cache.playerId)
-            end
-            -- Oxygen
-            if IsEntityInWater(cache.ped) then
-                oxygen = GetPlayerUnderwaterTimeRemaining(cache.playerId) * 10
-            end
-            -- Player hud
-            local talking = NetworkIsPlayerTalking(cache.playerId)
-            local voice = 0
-            if LocalPlayer.state.proximity then
-                voice = LocalPlayer.state.proximity.distance
-                for k, v in pairs(config.voiceVolumes) do
-                    if voice <= v then
-                        voice = k
-                        break
-                    end
-                end
-            end
-            if IsPauseMenuActive() then
-                show = false
-            end
-            if not (cache.vehicle and not IsThisModelABicycle(cache.vehicle)) then
-            updatePlayerHud({
-                show,
-                GetEntityHealth(cache.ped) - 100,
-                playerDead,
-                GetPedArmour(cache.ped),
-                thirst,
-                hunger,
-                stress,
-                voice,
-                talking,
-                oxygen,
-                cruiseOn,
-                showSeatbelt,
-                hp,
-                cache.vehicle and math.ceil(GetEntitySpeed(cache.vehicle) * speedMultiplier),
-                cache.vehicle and (GetVehicleEngineHealth(cache.vehicle) / 10),
-                cache.vehicle and GetVehicleCurrentGear(cache.vehicle),
-                cache.vehicle and GetVehicleEstimatedMaxSpeed(cache.vehicle),
-                cache.vehicle and GetVehicleCurrentRpm(cache.vehicle),
-                IsPauseMenuActive(),
-            })
-            end
-            -- Vehicle hud
-            if IsPedInAnyHeli(cache.ped) or IsPedInAnyPlane(cache.ped) then
-                showAltitude = true
-                showSeatbelt = false
-            end
-            if cache.vehicle and not IsThisModelABicycle(cache.vehicle) then
-                if not wasInVehicle then
-                    DisplayRadar(true)
-                end
-                wasInVehicle = true
-                updatePlayerHud({
-                    show,
-                    GetEntityHealth(cache.ped) - 100,
-                    playerDead,
-                    GetPedArmour(cache.ped),
-                    thirst,
-                    hunger,
-                    stress,
-                    voice,
-                    talking,
-                    oxygen,
-                    cruiseOn,
-                    showSeatbelt,
-                    hp,
-                    cache.vehicle and math.ceil(GetEntitySpeed(cache.vehicle) * speedMultiplier),
-                    cache.vehicle and (GetVehicleEngineHealth(cache.vehicle) / 10),
-                    cache.vehicle and GetVehicleCurrentGear(cache.vehicle),
-                    cache.vehicle and GetVehicleEstimatedMaxSpeed(cache.vehicle),
-                    cache.vehicle and GetVehicleCurrentRpm(cache.vehicle),
-                    IsPauseMenuActive(),
-                })
-                updateVehicleHud({
-                    show,
-                    IsPauseMenuActive(),
-                    LocalPlayer.state?.seatbelt,
-                    math.ceil(GetEntitySpeed(cache.vehicle) * speedMultiplier),
-                    getFuelLevel(cache.vehicle),
-                    showSeatbelt,
-                    (GetVehicleEngineHealth(cache.vehicle) / 10),
-                })
-                showSeatbelt = true
-            else
+        local waitTime = 1000
+        local isLoggedIn = LocalPlayer.state and LocalPlayer.state.isLoggedIn
+
+        if isLoggedIn then
+            lastPlayerLoggedIn = true
+            local hudData = buildPlayerHudData()
+            local inVehicle = isVehicle(cache.vehicle)
+            waitTime = inVehicle and 100 or 200
+
+            if not inVehicle then
                 if wasInVehicle then
                     wasInVehicle = false
+                    prevVehicleStats = {}
                     SendNUIMessage({
                         action = 'car',
                         show = false,
                         seatbelt = false,
                         cruise = false,
                     })
-                    cruiseOn = false
                 end
-                DisplayRadar(OutMap)
+                toggleRadar(OutMap)
+                updatePlayerHud(hudData)
+            else
+                if not wasInVehicle then
+                    toggleRadar(true)
+                    wasInVehicle = true
+                end
+                updatePlayerHud(hudData)
+                updateVehicleHud({
+                    hudData[1],
+                    hudData[11],
+                    LocalPlayer.state and LocalPlayer.state.seatbelt or false,
+                    math.ceil(GetEntitySpeed(cache.vehicle) * speedMultiplier),
+                    getFuelLevel(cache.vehicle),
+                    showSeatbelt,
+                    (GetVehicleEngineHealth(cache.vehicle) / 10),
+                    GetVehicleCurrentGear(cache.vehicle),
+                    GetVehicleCurrentRpm(cache.vehicle),
+                })
+                showSeatbelt = true
             end
+            
+            setMinimapPosition(minimapShifted, true)
         else
-            SendNUIMessage({
-                action = 'hudtick',
-                show = false
-            })
+            if lastPlayerLoggedIn then
+                SendNUIMessage({ action = 'hudtick', show = false })
+                lastPlayerLoggedIn = false
+            end
         end
+
+        Wait(waitTime)
     end
 end)
 
--- Low fuel
 CreateThread(function()
     while true do
-        if LocalPlayer.state.isLoggedIn then
+        if LocalPlayer.state and LocalPlayer.state.isLoggedIn then
             if cache.vehicle and not IsThisModelABicycle(GetEntityModel(cache.vehicle)) then
-                if getFuelLevel(cache.vehicle) <= 20 then -- At 20% Fuel Left
-                    -- Add pager sound for when fuel is low
+                if getFuelLevel(cache.vehicle) <= 20 then
                     exports.qbx_core:Notify(locale('notify.low_fuel'), 'error')
-                    Wait(60000) -- repeats every 1 min until empty
+                    Wait(60000)
                 end
             end
         end
@@ -334,22 +605,16 @@ CreateThread(function()
     end
 end)
 
--- Stress Gain
 if config.stress.enableStress then
-    CreateThread(function() -- Speeding
+    CreateThread(function()
         while true do
-            if LocalPlayer.state.isLoggedIn then
+            if LocalPlayer.state and LocalPlayer.state.isLoggedIn then
                 if cache.vehicle then
                     local vehClass = GetVehicleClass(cache.vehicle)
-                    local speed = GetEntitySpeed(cache.vehicle) * speedMultiplier
-
                     if vehClass ~= 13 and vehClass ~= 14 and vehClass ~= 15 and vehClass ~= 16 and vehClass ~= 21 then
-                        local stressSpeed
-                        if vehClass == 8 then
-                            stressSpeed = config.stress.minForSpeeding
-                        else
-                            stressSpeed = LocalPlayer.state?.seatbelt and config.stress.minForSpeeding or config.stress.minForSpeedingUnbuckled
-                        end
+                        local speed = GetEntitySpeed(cache.vehicle) * speedMultiplier
+                        local stressSpeed = vehClass == 8 and config.stress.minForSpeeding
+                            or ((LocalPlayer.state and LocalPlayer.state.seatbelt) and config.stress.minForSpeeding or config.stress.minForSpeedingUnbuckled)
                         if speed >= stressSpeed then
                             TriggerServerEvent('hud:server:GainStress', math.random(1, 3))
                         end
@@ -361,43 +626,24 @@ if config.stress.enableStress then
     end)
 end
 
-local function isWhitelistedWeaponStress(weapon)
-    if weapon then
-        for _, v in pairs(config.stress.whitelistedWeapons) do
-            if weapon == v then
-                return true
-            end
-        end
-    end
-    return false
-end
-
-local function startWeaponStressThread(weapon)
-    if isWhitelistedWeaponStress(weapon) then return end
-    hasWeapon = true
-
-    CreateThread(function()
-        while hasWeapon do
-            if IsPedShooting(cache.ped) then
-                if math.random() <= config.stress.chance then
-                    TriggerServerEvent('hud:server:GainStress', math.random(1, 5))
-                end
-            end
-            Wait(0)
-        end
-    end)
-end
+local hasWeapon = false
 
 AddEventHandler('ox_inventory:currentWeapon', function(currentWeapon)
     hasWeapon = false
-    Wait(0)
-
     if not currentWeapon then return end
 
-    startWeaponStressThread(currentWeapon.hash)
+    if not isWhitelistedWeapon(currentWeapon.hash, config.stress.whitelistedWeapons) then
+        hasWeapon = true
+        CreateThread(function()
+            while hasWeapon do
+                if IsPedShooting(cache.ped) and math.random() <= config.stress.chance then
+                    TriggerServerEvent('hud:server:GainStress', math.random(1, 5))
+                end
+                Wait(100)
+            end
+        end)
+    end
 end)
-
--- Stress Screen Effects
 
 local function getBlurIntensity(stresslevel)
     for _, v in pairs(config.stress.blurIntensity) do
@@ -409,9 +655,9 @@ local function getBlurIntensity(stresslevel)
 end
 
 local function getEffectInterval(stresslevel)
-    for _, v in pairs(config.stress.effectInterval) do
+    for _, v in pairs(config.stress.effectIntervalRange) do
         if stresslevel >= v.min and stresslevel <= v.max then
-            return v.timeout
+            return math.random(v.minTimeout, v.maxTimeout)
         end
     end
     return 60000
@@ -434,7 +680,7 @@ CreateThread(function()
             end
 
             Wait(1000)
-            for _ = 1, fallRepeat, 1 do
+            for _ = 1, fallRepeat do
                 Wait(750)
                 DoScreenFadeOut(200)
                 Wait(1000)
@@ -453,17 +699,19 @@ CreateThread(function()
     end
 end)
 
--- Compass
-local prevBaseplateStats = {nil, nil, nil, nil, nil, nil, nil}
+local prevBaseplateStats = {}
 
 local function updateBaseplateHud(data)
     local shouldUpdate = false
-    for k, v in pairs(data) do
-        if prevBaseplateStats[k] ~= v then shouldUpdate = true break end
+    for i = 1, 3 do
+        if prevBaseplateStats[i] ~= data[i] then
+            shouldUpdate = true
+            break
+        end
     end
     prevBaseplateStats = data
     if shouldUpdate then
-        SendNUIMessage ({
+        SendNUIMessage({
             action = 'streetnames',
             show = data[1],
             street1 = data[2],
@@ -481,51 +729,30 @@ local function getCrossroads(player)
         local pos = GetEntityCoords(player)
         local street1, street2 = GetStreetNameAtCoord(pos.x, pos.y, pos.z)
         lastCrossroadUpdate = updateTick
-        lastCrossroadCheck = {GetStreetNameFromHashKey(street1), GetStreetNameFromHashKey(street2)}
+        lastCrossroadCheck = { GetStreetNameFromHashKey(street1), GetStreetNameFromHashKey(street2) }
     end
     return lastCrossroadCheck
 end
 
--- Compass Update loop
-
 CreateThread(function()
-	local lastHeading = 1
-    local heading
-	while true do
-        Wait(50)
-        local show = true
+    local lastHeading = 1
+    while true do
+        Wait(100)
         local camRot = GetGameplayCamRot(0)
-        heading = qbx.math.round(360.0 - ((camRot.z + 360.0) % 360.0))
-		if heading == 360 then heading = 0 end
+        local heading = round(360.0 - ((camRot.z + 360.0) % 360.0))
+        if heading == 360 then heading = 0 end
         if heading ~= lastHeading then
             if cache.vehicle then
                 local crossroads = getCrossroads(cache.ped)
-                SendNUIMessage ({
-                    action = 'compass',
-                    value = heading
-                })
-                updateBaseplateHud({
-                    show,
-                    crossroads[1],
-                    crossroads[2],
-                })
+                SendNUIMessage({ action = 'compass', value = heading })
+                updateBaseplateHud({ true, crossroads[1], crossroads[2] })
             else
                 if OutMap then
                     local crossroads = getCrossroads(cache.ped)
-                    SendNUIMessage ({
-                        action = 'compass',
-                        value = heading
-                    })
-                    updateBaseplateHud({
-                        show,
-                        crossroads[1],
-                        crossroads[2],
-                    })
+                    SendNUIMessage({ action = 'compass', value = heading })
+                    updateBaseplateHud({ true, crossroads[1], crossroads[2] })
                 else
-                    SendNUIMessage ({
-                        action = 'streetnames',
-                        show = false,
-                    })
+                    SendNUIMessage({ action = 'streetnames', show = false })
                 end
             end
         end
@@ -535,64 +762,42 @@ end)
 
 RegisterNetEvent('qbx_hud:client:showHud', function()
     if cache.vehicle then
-        DisplayRadar(true)
+        toggleRadar(true)
+        setMinimapPosition(false)
         updateVehicleHud({
             true,
             IsPauseMenuActive(),
-            LocalPlayer.state?.seatbelt,
+            LocalPlayer.state and LocalPlayer.state.seatbelt or false,
             math.ceil(GetEntitySpeed(cache.vehicle) * speedMultiplier),
             getFuelLevel(cache.vehicle),
             showSeatbelt,
-            cache.vehicle and (GetVehicleEngineHealth(cache.vehicle) / 10),
-            cache.vehicle and GetVehicleCurrentGear(cache.vehicle),
-            cache.vehicle and GetVehicleEstimatedMaxSpeed(cache.vehicle),
-            cache.vehicle and GetVehicleCurrentRpm(cache.vehicle),
+            (GetVehicleEngineHealth(cache.vehicle) / 10),
+            GetVehicleCurrentGear(cache.vehicle),
+            GetVehicleCurrentRpm(cache.vehicle),
         })
     end
 end)
 
 RegisterNetEvent('qbx_hud:client:hideHud', function()
     if cache.vehicle then
-        DisplayRadar(false)
-        SendNUIMessage({
-            action = 'car',
-            show = false,
-        })
+        toggleRadar(false)
+        setMinimapPosition(true)
+        SendNUIMessage({ action = 'car', show = false })
     end
 end)
 
 RegisterNetEvent('Hud:Client:UpdateHudStats', function(id, value)
-    SendNUIMessage({
-        action = 'updateCustomStat',
-        id = id,
-        value = value
-    })
+    SendNUIMessage({ action = 'updateCustomStat', id = id, value = value })
 end)
 
 RegisterNetEvent('Hud:Client:RemoveCustomStat', function(name)
-    SendNUIMessage({
-        action = 'removeCustomStat',
-        statname = name
-    })
+    SendNUIMessage({ action = 'removeCustomStat', statname = name })
 end)
 
-
--- Set hud height
--- @param height number: The new height of the hud in vh (1-100)
--- @param type string: "stats", "car", or nil for both
 RegisterNetEvent('Hud:Client:SetHudHeight', function(height, type)
-    SendNUIMessage({
-        action = 'setHudHeight',
-        height = height,
-        type = type
-    })
+    SendNUIMessage({ action = 'setHudHeight', height = height, type = type })
 end)
 
--- Reset hud height
--- @param type string: "stats", "car", or nil for both
 RegisterNetEvent('Hud:Client:ResetHudHeight', function(type)
-    SendNUIMessage({
-        action = 'resetHudHeight',
-        type = type
-    })
+    SendNUIMessage({ action = 'resetHudHeight', type = type })
 end)

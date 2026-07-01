@@ -1,0 +1,7 @@
+{
+    "notify": {
+        "low_fuel": "Low fuel!",
+        "stress_gain": "You feel stressed",
+        "stress_removed": "You feel more relaxed"
+    }
+}

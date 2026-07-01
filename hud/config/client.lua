@@ -1,40 +1,65 @@
 return {
-    useMPH = false, -- If true, speed math will be done as MPH, if false KPH will be used (YOU HAVE TO CHANGE CONTENT IN STYLES.CSS TO DISPLAY THE CORRECT TEXT)
-    outMap = false, -- If true, the map will display always, if false, it will only show when in a vehicle
-    voiceVolumes = {1.5, 3, 6},
+    useMPH = false,
+    outMap = false,
+    hud = {
+        hideThreshold = 90,
+        blinkThreshold = 15,
+    },
+    voiceVolumes = { 1.5, 3, 6 },
+    hudColors = {
+        primary = '#f5881b',
+        lowEngine = '#bc1b1b',
+        ui = {
+            primary = '#f5881b',
+            buttonHover = '#e07a16',
+            editingBg = 'rgba(245, 136, 27, 0.2)',
+            minimapBg = 'rgba(245, 136, 27, 0.15)',
+            minimapBorder = '#f5881b',
+        },
+        stats = {
+            health = { '#ff4d4d', '#8e1212' },
+            hunger = { '#ffcc5c', '#90551d' },
+            thirst = { '#4d79a8', '#1e4a89' },
+            armor = { '#9b9917', '#5d5b1a' },
+            oxygen = { '#4bafb6', '#1f8a91' },
+            stress = { '#c974ff', '#7f2bd8' },
+        },
+        vehicle = {
+            fuel = '#f5881b',
+            engineGood = '#27ae60',
+            engineBad = '#e74c3c',
+        },
+    },
     stress = {
-        enableStress = true, -- If true, stress will be enabled
-        chance = 0.1, -- Percentage stress chance when shooting (0-1)
-        minForShaking = 50, -- Minimum stress level for screen shaking
-        minForSpeeding = 1000, -- Minimum stress level for speeding while buckled
-        minForSpeedingUnbuckled = 50, -- Minimum stress level for speeding while unbuckled
-        whitelistedWeapons = { -- Weapons which don't give stress
+        enableStress = true,
+        chance = 0.1,
+        minForShaking = 50,
+        minForSpeeding = 1000,
+        minForSpeedingUnbuckled = 50,
+        whitelistedWeapons = {
             `weapon_petrolcan`,
             `weapon_hazardcan`,
             `weapon_fireextinguisher`,
         },
-        blurIntensity = { -- Blur intensity for different stress levels
-            [1] = {min = 50, max = 60, intensity = 1500},
-            [2] = {min = 60, max = 70, intensity = 2000},
-            [3] = {min = 70, max = 80, intensity = 2500},
-            [4] = {min = 80, max = 90, intensity = 2700},
-            [5] = {min = 90, max = 100, intensity = 3000},
+        blurIntensity = {
+            [1] = { min = 50, max = 60, intensity = 1500 },
+            [2] = { min = 60, max = 70, intensity = 2000 },
+            [3] = { min = 70, max = 80, intensity = 2500 },
+            [4] = { min = 80, max = 90, intensity = 2700 },
+            [5] = { min = 90, max = 100, intensity = 3000 },
         },
-        effectInterval = { -- Effect interval for different stress levels
-            [1] = {min = 50, max = 60, timeout = math.random(50000, 60000)},
-            [2] = {min = 60, max = 70, timeout = math.random(40000, 50000)},
-            [3] = {min = 70, max = 80, timeout = math.random(30000, 40000)},
-            [4] = {min = 80, max = 90, timeout = math.random(20000, 30000)},
-            [5] = {min = 90, max = 100, timeout = math.random(15000, 20000)},
+        effectIntervalRange = {
+            [1] = { min = 50, max = 60, minTimeout = 50000, maxTimeout = 60000 },
+            [2] = { min = 60, max = 70, minTimeout = 40000, maxTimeout = 50000 },
+            [3] = { min = 70, max = 80, minTimeout = 30000, maxTimeout = 40000 },
+            [4] = { min = 80, max = 90, minTimeout = 20000, maxTimeout = 30000 },
+            [5] = { min = 90, max = 100, minTimeout = 15000, maxTimeout = 20000 },
         },
     },
-
-    weaponsArmedMode = { -- Weapons which won't trigger armed mode
-        -- Miscellaneous
+    weaponsArmedMode = {
         `weapon_petrolcan`,
         `weapon_hazardcan`,
         `weapon_fireextinguisher`,
-        -- Melee
         `weapon_dagger`,
         `weapon_bat`,
         `weapon_bottle`,
@@ -57,7 +82,6 @@ return {
         `weapon_handcuffs`,
         `weapon_bread`,
         `weapon_stone_hatchet`,
-        -- Throwables
         `weapon_grenade`,
         `weapon_bzgas`,
         `weapon_molotov`,
@@ -69,7 +93,6 @@ return {
         `weapon_smokegrenade`,
         `weapon_flare`,
     },
-
     customHudStats = {
         [1] = {
             name = 'car',
